@@ -68,7 +68,7 @@ typedef struct {
   char* args;
  } ftp_cmd;
 
- ftp_cmd *parse_cmd(char *buf);
+ ftp_cmd parse_cmd(char *buf);
 
  int login(char *args) {
 printf("In login\n");
@@ -177,7 +177,7 @@ int main(int argc, char **argv)
         break;
       }
 	  printf("Buffer is: %s\n", buf);
-      ftp_cmd *cmd = parse_cmd(buf);
+      ftp_cmd cmd = parse_cmd(buf);
 	  char USERNAME[] = "cs317";
 	  printf("After user\n");
 	  // TODO USERNAMES ARE CASE SENSITIVE
@@ -193,11 +193,11 @@ int main(int argc, char **argv)
 	// 	isLoggedIn = 1;
 	//   } else if(isLoggedIn == 1) {
 		printf("[+] Switch Statement\n");
-		printf("Command is: %s\n", cmd->cmd);
+		printf("Command is: %d\n", cmd.cmd);
 		// return 0;
-		switch(cmd->cmd) {
+		switch(cmd.cmd) {
 			case USER:
-			login(cmd->args);
+			login(cmd.args);
 			break;
 			case PASS:
 			break;
@@ -218,7 +218,9 @@ int main(int argc, char **argv)
 			case PASV:
 			break;
 			case NLST:
-			break;
+      break;
+      case INVALID:
+      break;
 			
 			// default:
 			/**
@@ -242,21 +244,25 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-ftp_cmd *parse_cmd(char *buf) {
+ftp_cmd parse_cmd(char *buf) {
 
-  char *cmd;
+  int cmd;
   char *arg;
   ftp_cmd cmd1;
 
-  cmd = strtok(buf, " \r\n");
-  printf("Command is: %s\n", cmd);
+  cmd = *strtok(buf, " \r\n");
+  printf("Command is: %d\n", cmd);
   arg = strtok(NULL, " \r\n");
   printf("Arg is: %s\n", arg);
+
+  // TODO should be doing strcmp stuff in here to get the command string and turn it into an integer for the enum to understand
+
+  
 
   cmd1.cmd = cmd;
   cmd1.args = arg;
 
-  return &cmd1;
+  return cmd1;
   
 }
 
