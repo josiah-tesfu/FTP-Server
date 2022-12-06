@@ -70,6 +70,10 @@ typedef struct {
 
  ftp_cmd *parse_cmd(char *buf);
 
+ int login(char *args) {
+printf("In login\n");
+}
+
 int main(int argc, char **argv)
 {
 	int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
@@ -81,6 +85,7 @@ int main(int argc, char **argv)
 	char s[INET6_ADDRSTRLEN];
 	int rv;
   char buf[MAXDATASIZE];
+	int isLoggedIn = 0;
 
   char* PORT = argv[1];
 
@@ -140,6 +145,7 @@ int main(int argc, char **argv)
 	printf("server: waiting for connections...\n");
 
 	while(1) {  // main accept() loop
+		printf("just entered while loop\n");
 		sin_size = sizeof their_addr;
 		new_fd = accept(sockfd, (struct sockaddr *)&their_addr, &sin_size);
 		if (new_fd == -1) {
@@ -152,22 +158,75 @@ int main(int argc, char **argv)
 			s, sizeof s);
 		printf("server: got connection from %s\n", s);
 
+		// * Responds with 220 to initiate login sequence
+		bzero(buf, MAXDATASIZE);
+		strcpy(buf, "220\n");
+		send(new_fd, buf, sizeof(buf), 0);
+
 
     //
     //
     //
     while(1) {
       bzero(buf, MAXDATASIZE);
-
+	  printf("in second while loop\n");
       char buf[MAXDATASIZE];
       if (recv(new_fd, buf, MAXDATASIZE-1, 0) == -1) {
         perror("error reading from socket");
         close(new_fd);
         break;
       }
+	  printf("Buffer is: %s\n", buf);
       ftp_cmd *cmd = parse_cmd(buf);
+	  char USERNAME[] = "cs317";
+	  printf("After user\n");
+	  // TODO USERNAMES ARE CASE SENSITIVE
+	  char user[] = "USER";
+	//   printf("Cmd is: %s\n", cmd->cmd);
+	//   printf("Args is: %s\n", cmd->args);
+	//   if (strcmp(cmd->cmd, user) == 0 && strcmp(cmd->args, USERNAME) != 0) {
+	// 	bzero(buf, MAXDATASIZE);
+	// 	strcpy(buf, "530: Not Logged In\n");
+	// 	send(new_fd, buf, sizeof(buf), 0);
+	// 	printf("Log In Failed");
+	//   } else if(strcmp(cmd->cmd, user) == 0 && strcmp(cmd->args, USERNAME) == 0) {
+	// 	isLoggedIn = 1;
+	//   } else if(isLoggedIn == 1) {
+		printf("[+] Switch Statement\n");
+		printf("Command is: %s\n", cmd->cmd);
+		// return 0;
+		switch(cmd->cmd) {
+			case USER:
+			login(cmd->args);
+			break;
+			case PASS:
+			break;
+			case RETR:
+			break;
+			case QUIT:
+			break;
+			case CWD:
+			break;
+			case CDUP:
+			break;
+			case TYPE:
+			break;
+			case MODE:
+			break;
+			case STRU:
+			break;
+			case PASV:
+			break;
+			case NLST:
+			break;
+			
+			// default:
+			/**
+			 * Return 500 response
+			 */
+			// }
+	  }
     }
-
     //
     //
     //
@@ -187,12 +246,18 @@ ftp_cmd *parse_cmd(char *buf) {
 
   char *cmd;
   char *arg;
+  ftp_cmd cmd1;
 
   cmd = strtok(buf, " \r\n");
+  printf("Command is: %s\n", cmd);
   arg = strtok(NULL, " \r\n");
+  printf("Arg is: %s\n", arg);
+
+  cmd1.cmd = cmd;
+  cmd1.args = arg;
+
+  return &cmd1;
   
-
-
 }
 
 
