@@ -19,7 +19,9 @@
 #include <pthread.h>
 
 
-//#define PORT "3490"  // the port users will be connecting to
+
+
+#define MAXDATASIZE 256
 
 #define BACKLOG 10	 // how many pending connections queue will hold
 
@@ -46,6 +48,28 @@ void *get_in_addr(struct sockaddr *sa)
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
+typedef enum {
+ INVALID = -1,
+ USER,
+ PASS,
+ RETR,
+ QUIT,
+ CWD,
+ CDUP,
+ TYPE,
+ MODE,
+ STRU,
+ PASV,
+ NLST
+ } FTP_CMD;
+
+typedef struct {
+  FTP_CMD cmd;
+  char* args;
+ } ftp_cmd;
+
+ ftp_cmd *parse_cmd(char *buf);
+
 int main(int argc, char **argv)
 {
 	int sockfd, new_fd;  // listen on sock_fd, new connection on new_fd
@@ -56,8 +80,9 @@ int main(int argc, char **argv)
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
 	int rv;
+  char buf[MAXDATASIZE];
 
-  char* PORT = argv[0];
+  char* PORT = argv[1];
 
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;
@@ -127,9 +152,25 @@ int main(int argc, char **argv)
 			s, sizeof s);
 		printf("server: got connection from %s\n", s);
 
-    // write stuff here apparently
 
-    
+    //
+    //
+    //
+    while(1) {
+      bzero(buf, MAXDATASIZE);
+
+      char buf[MAXDATASIZE];
+      if (recv(new_fd, buf, MAXDATASIZE-1, 0) == -1) {
+        perror("error reading from socket");
+        close(new_fd);
+        break;
+      }
+      ftp_cmd *cmd = parse_cmd(buf);
+    }
+
+    //
+    //
+    //
 
     close(sockfd); // child doesn't need the listener
     if (send(new_fd, "Hello, world!", 13, 0) == -1)
@@ -141,6 +182,20 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+
+ftp_cmd *parse_cmd(char *buf) {
+
+  char *cmd;
+  char *arg;
+
+  cmd = strtok(buf, " \r\n");
+  arg = strtok(NULL, " \r\n");
+  
+
+
+}
+
+
 
 
 
