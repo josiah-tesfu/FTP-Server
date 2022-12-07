@@ -51,7 +51,6 @@ typedef enum
 {
 	INVALID = -1,
 	USER,
-	PASS,
 	RETR,
 	QUIT,
 	CWD,
@@ -74,6 +73,25 @@ ftp_cmd parse_cmd(char *buf);
 int login(char *args)
 {
 	printf("In login\n");
+}
+
+int changeDirectory(char *args) {
+	printf("Inside change directory\n");
+	// todo: check if first character is . (./)
+	// todo: check if second character is .. (../)
+	// todo: check if the path includes ../
+	// 
+
+	if (strstr(args, "../") != NULL) {
+		// todo bad path
+	} else if (strstr(args, "./") != NULL) {
+		// todo: bad path
+	} else {
+		chdir(args);
+		printf("In else statement\n");
+	}
+
+
 }
 
 int main(int argc, char **argv)
@@ -181,7 +199,7 @@ int main(int argc, char **argv)
 		while (1)
 		{
 			bzero(buf, MAXDATASIZE);
-			printf("in second while loop\n");
+			// printf("in second while loop\n");
 			char buf[MAXDATASIZE];
 			if (recv(new_fd, buf, MAXDATASIZE - 1, 0) == -1)
 			{
@@ -192,9 +210,15 @@ int main(int argc, char **argv)
 			printf("Buffer is: %s\n", buf);
 			ftp_cmd cmd = parse_cmd(buf);
 
+			printf("COMMAND: %d\n", cmd.cmd);
+			printf("ARGS: %s\n", cmd.args);
+			printf("ARGS: %d\n", isLoggedIn);
+			
+
 			// * if trying to login with username other than cs317
 			if (cmd.cmd == USER && strcmp(cmd.args, "cs317") != 0)
 			{
+				printf("Inside bad username\n");
 				bzero(buf, MAXDATASIZE);
 				strcpy(buf, "530: Not Logged In\n");
 				send(new_fd, buf, sizeof(buf), 0);
@@ -204,8 +228,9 @@ int main(int argc, char **argv)
 			}
 			else if (cmd.cmd == USER && strcmp(cmd.args, "cs317") == 0)
 			{
-				printf("Inside else\n");
+				
 				isLoggedIn = 1;
+				printf("Logged In\n");
 
 				// if user is already logged in
 				// ! ASSUMING USER HAS TO BE LOGGED IN TO QUIT
@@ -220,21 +245,21 @@ int main(int argc, char **argv)
 					// login(cmd.args);
 					// TODO do nothing ?? since we already check login earlier
 					break;
-				case PASS:
-					break;
 				case RETR:
 					break;
-				case QUIT:
+				case QUIT: //
 					break;
-				case CWD:
+				case CWD: //
+					printf("In CWD\n");
+					changeDirectory(cmd.args);
 					break;
-				case CDUP:
+				case CDUP: //
 					break;
-				case TYPE:
+				case TYPE: //
 					break;
-				case MODE:
+				case MODE: //
 					break;
-				case STRU:
+				case STRU: //
 					break;
 				case PASV:
 					break;
@@ -248,13 +273,12 @@ int main(int argc, char **argv)
 					 * Return 500 response
 					 */
 				}
-			}
-			//   } else {
-			// 	bzero(buf, MAXDATASIZE);
-			// 	strcpy(buf, "530: Not Logged In\n");
-			// 	send(new_fd, buf, sizeof(buf), 0);
-			// 	printf("Not Logged In");
-			//   }
+			} else {
+				bzero(buf, MAXDATASIZE);
+				strcpy(buf, "530: Not Logged In\n");
+				send(new_fd, buf, sizeof(buf), 0);
+				printf("Not Logged In");
+			  }
 		}
 		//
 		//
@@ -272,7 +296,6 @@ int main(int argc, char **argv)
 
 ftp_cmd parse_cmd(char *buf)
 {
-
 	char *cmd;
 	char *arg;
 	ftp_cmd cmd1;
@@ -280,42 +303,40 @@ ftp_cmd parse_cmd(char *buf)
 
 	cmd = strtok(buf, " \r\n");
 
-	char * cmdUp = cmd;
-	while (*cmdUp) {
-    *cmdUp = toupper((unsigned char) *cmdUp);
-    cmdUp++;
-  }
-	
-	
+// 	char * cmdUp = cmd;
+// 	while (*cmdUp) {
+//     *cmdUp = toupper((unsigned char) *cmdUp);
+//     cmdUp++;
+//   }
 
-
+	// printf("CMDUP is: %s\n", cmdUp);
 	printf("Command is: %s\n", cmd);
 	arg = strtok(NULL, " \r\n");
 	printf("Arg is: %s\n", arg);
+	
+	
 
-	if (strcmp(cmdUp, "USER"))
+	if (strcasecmp(cmd, "USER") == 0) 
 		cmdInt = 0;
-	else if (strcmp(cmdUp, "PASS"))
+	else if (strcasecmp(cmd, "RETR") == 0)
 		cmdInt = 1;
-	else if (strcmp(cmdUp, "RETR"))
+	else if (strcasecmp(cmd, "QUIT") == 0)
 		cmdInt = 2;
-	else if (strcmp(cmdUp, "QUIT"))
+	else if (strcasecmp(cmd, "CWD") == 0)
 		cmdInt = 3;
-	else if (strcmp(cmdUp, "CWD"))
+	else if (strcasecmp(cmd, "CDUP") == 0)
 		cmdInt = 4;
-	else if (strcmp(cmdUp, "CDUP"))
+	else if (strcasecmp(cmd, "TYPE") == 0)
 		cmdInt = 5;
-	else if (strcmp(cmdUp, "TYPE"))
+	else if (strcasecmp(cmd, "MODE") == 0)
 		cmdInt = 6;
-	else if (strcmp(cmdUp, "MODE"))
+	else if (strcasecmp(cmd, "STRU") == 0)
 		cmdInt = 7;
-	else if (strcmp(cmdUp, "STRU"))
+	else if (strcasecmp(cmd, "PASV") == 0)
 		cmdInt = 8;
-	else if (strcmp(cmdUp, "PASV"))
+	else if (strcasecmp(cmd, "NLST") == 0)
 		cmdInt = 9;
-	else if (strcmp(cmdUp, "NLST"))
-		cmdInt = 10;
-
+	
 	cmd1.cmd = cmdInt;
 	cmd1.args = arg;
 
