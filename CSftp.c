@@ -23,6 +23,8 @@
 
 #define BACKLOG 10 // how many pending connections queue will hold
 
+int sockfd, new_fd; // listen on sock_fd, new connection on new_fd
+
 void sigchld_handler(int s)
 {
 	(void)s; // quiet unused variable warning
@@ -69,7 +71,7 @@ typedef struct
 } ftp_cmd;
 
 ftp_cmd parse_cmd(char *buf);
-void pasv(int fd, char *args);
+int pasv();
 
 int login(char *args)
 {
@@ -97,7 +99,6 @@ int changeDirectory(char *args) {
 
 int main(int argc, char **argv)
 {
-	int sockfd, new_fd; // listen on sock_fd, new connection on new_fd
 	struct addrinfo hints, *servinfo, *p;
 	struct sockaddr_storage their_addr; // connector's address information
 	socklen_t sin_size;
@@ -263,6 +264,8 @@ int main(int argc, char **argv)
 				case STRU: //
 					break;
 				case PASV:
+					printf("In PASV");
+					pasv();
 					break;
 				case NLST:
 					break;
@@ -344,35 +347,33 @@ ftp_cmd parse_cmd(char *buf)
 	return cmd1;
 }
 
-void pasv(int fd, char *args) {
-
-	// copied stuff from main up until bind
-
-	int pasvfd;
+int pasv() {
+	int pasvfd, new_pasvfd;
 	struct addrinfo hints, *servinfo, *p;
-	struct sockaddr_storage their_addr; // connector's address information
-	socklen_t sin_size;
+	struct sockaddr_storage pasv_their_addr; // connector's address information
+	socklen_t pasv_sin_size;
 	struct sigaction sa;
 	int yes = 1;
 	char s[INET6_ADDRSTRLEN];
 	int rv;
 	char buf[MAXDATASIZE];
 	int isLoggedIn = 0;
+	char pasv_msg[MAXDATASIZE];
 
-	//char *PORT = argv[1];
+	struct sockaddr_in sin;
 
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE; // use my IP
 
-	if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0)
+	// using a random PORT number (0)
+	if ((rv = getaddrinfo(NULL, 0, &hints, &servinfo)) != 0)
 	{
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 		return 1;
 	}
 
-	// loop through all the results and bind to the first we can
 	for (p = servinfo; p != NULL; p = p->ai_next)
 	{
 		if ((pasvfd = socket(p->ai_family, p->ai_socktype,
@@ -408,21 +409,71 @@ void pasv(int fd, char *args) {
 	}
 
 
+	// getting the socket info
+	socklen_t sin_len = sizeof(sin); 
+	if (getsockname(pasvfd, (struct sockaddr *)&sin, &sin_len) == -1)
+	{
+    	perror("getsockname");
+		exit(1);
+	}
 
-	/* TODO: what I need to do
+	// socket port
+	int pasvfd_port = (int) ntohs(sin.sin_port);
+	// socket IP address (in string format)
+	char *pasvfd_addr = inet_ntoa(sin.sin_addr);
 
+	// getting the IP address as an int array
+	int ip_int[4];
+	char *tok;
+	tok = strtok(pasvfd_addr, ".\n"); // ask about " \r\n" in office hours
+	ip_int[0] = atoi(tok);
 
-		get an IP address (use localhost)
+	int acc = 1;
+	while(tok != NULL) {
+		tok = strtok(NULL, ".\n");
+		ip_int[acc] = atoi(tok);
+		acc++;
+	}
 
-		use a random port (use 0)
+	int port_p1 = pasvfd_port / 256;
+	int port_p2 = pasvfd_port % 256;
 
-		get the actual port
+	// send client entering passive mode message
+	snprintf(pasv_msg, MAXDATASIZE, "227 Entering passive mode (%d,%d,%d,%d,%d,%d).\n", 
+		ip_int[0], ip_int[1], ip_int[2], ip_int[3], port_p1, port_p2);
+	send(new_fd, pasv_msg, sizeof(pasv_msg), 0);
 
-		calculate x 256 = port
+	// timeout stuff
+	fd_set fdset;
+	fd_set *rfds, *wfds;
+	struct timeval timeout;
+	int timeout_state;
 
-		return a 6-tuple that includes ip address, port and x
+	FD_ZERO (&fdset);
+    FD_SET  (pasvfd, &fdset);
+    timeout.tv_sec = 30;
+    timeout.tv_usec = 0;
 
+	if (listen(pasvfd_port, BACKLOG) == -1)
+	{
+		perror("listen");
+		exit(1);
+	}
 
-	*/
-
+	timeout_state = select(pasvfd+1, rfds, wfds, NULL, &timeout);
+	if (timeout_state == -1) {
+		// error select
+	} else if (timeout_state) {
+		pasv_sin_size = sizeof pasv_their_addr;
+		new_pasvfd = accept(pasvfd, (struct sockaddr *)&pasv_their_addr, &pasv_sin_size);
+		if (new_pasvfd == -1)
+		{
+			perror("accept");
+		}
+		printf("Passive mode entered on IP address: %s, port: %d", pasvfd_addr, pasvfd_port);
+	} else {
+		// timeout
+	}
+	
+	return 0;
 }
