@@ -69,6 +69,7 @@ typedef struct
 } ftp_cmd;
 
 ftp_cmd parse_cmd(char *buf);
+void pasv(int fd, char *args);
 
 int login(char *args)
 {
@@ -341,4 +342,87 @@ ftp_cmd parse_cmd(char *buf)
 	cmd1.args = arg;
 
 	return cmd1;
+}
+
+void pasv(int fd, char *args) {
+
+	// copied stuff from main up until bind
+
+	int pasvfd;
+	struct addrinfo hints, *servinfo, *p;
+	struct sockaddr_storage their_addr; // connector's address information
+	socklen_t sin_size;
+	struct sigaction sa;
+	int yes = 1;
+	char s[INET6_ADDRSTRLEN];
+	int rv;
+	char buf[MAXDATASIZE];
+	int isLoggedIn = 0;
+
+	//char *PORT = argv[1];
+
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE; // use my IP
+
+	if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0)
+	{
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		return 1;
+	}
+
+	// loop through all the results and bind to the first we can
+	for (p = servinfo; p != NULL; p = p->ai_next)
+	{
+		if ((pasvfd = socket(p->ai_family, p->ai_socktype,
+							 p->ai_protocol)) == -1)
+		{
+			perror("server: socket");
+			continue;
+		}
+
+		if (setsockopt(pasvfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+					   sizeof(int)) == -1)
+		{
+			perror("setsockopt");
+			exit(1);
+		}
+
+		if (bind(pasvfd, p->ai_addr, p->ai_addrlen) == -1)
+		{
+			close(pasvfd);
+			perror("server: bind");
+			continue;
+		}
+
+		break;
+	}
+
+	freeaddrinfo(servinfo); // all done with this structure
+
+	if (p == NULL)
+	{
+		fprintf(stderr, "server: failed to bind\n");
+		exit(1);
+	}
+
+
+
+	/* TODO: what I need to do
+
+
+		get an IP address (use localhost)
+
+		use a random port (use 0)
+
+		get the actual port
+
+		calculate x 256 = port
+
+		return a 6-tuple that includes ip address, port and x
+
+
+	*/
+
 }
