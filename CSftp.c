@@ -363,7 +363,7 @@ int pasv() {
 	char pasv_msg[MAXDATASIZE];
 
 	char hostbuffer[MAXDATASIZE];
-    char *host_addr;
+    char *pasv_addr;
     struct hostent *host_entry;
     int hostname;
 
@@ -427,21 +427,21 @@ int pasv() {
 		exit(1);
 	}
 
-	int init_port = (int) ntohs(sin.sin_port);
-	printf("PASV on port port: %d\n", init_port);
+	int pasv_port = (int) ntohs(sin.sin_port);
+	printf("PASV on port port: %d\n", pasv_port);
   
     hostname = gethostname(hostbuffer, sizeof(hostbuffer));
     host_entry = gethostbyname(hostbuffer);
-    host_addr = inet_ntoa(*((struct in_addr*)
+    pasv_addr = inet_ntoa(*((struct in_addr*)
                            host_entry->h_addr_list[0]));
   
-	printf("PASV on IP address: %s\n", host_addr);
+	printf("PASV on IP address: %s\n", pasv_addr);
 
 	// getting the IP address as an array
   	unsigned char init_adr_array[4] = {0};
     size_t index = 0;
 
-    char *temp = host_addr; /* save the pointer */
+    char *temp = pasv_addr; /* save the pointer */
     while (*temp) {
         if (isdigit((unsigned char)*temp)) {
             init_adr_array[index] *= 10;
@@ -453,17 +453,24 @@ int pasv() {
     }
 
     int ip1 = init_adr_array[0];
-    int ip2 = init_adr_array[0];
-    int ip3 = init_adr_array[0];
-    int ip4 = init_adr_array[0];
+    int ip2 = init_adr_array[1];
+    int ip3 = init_adr_array[2];
+    int ip4 = init_adr_array[3];
 
-	int port_p1 = init_port / 256;
-	int port_p2 = init_port % 256;
+	int port_p1 = pasv_port / 256;
+	int port_p2 = pasv_port % 256;
+
 
 	// send client entering passive mode message
+	bzero(pasv_msg, MAXDATASIZE);
 	snprintf(pasv_msg, MAXDATASIZE, "227 Entering passive mode (%d,%d,%d,%d,%d,%d).\n", 
 		ip1, ip2, ip3, ip4, port_p1, port_p2);
 	send(new_fd, pasv_msg, sizeof(pasv_msg), 0);
+
+	char port_msg[MAXDATASIZE];
+	bzero(port_msg, MAXDATASIZE);
+	snprintf(port_msg, MAXDATASIZE, "Connect to Data client on %s:%d", pasv_addr, pasv_port);
+	send(new_fd, port_msg, sizeof(port_msg), 0);
 
 	// timeout stuff
 	fd_set fdset;
@@ -483,30 +490,25 @@ int pasv() {
 		exit(1);
 	}
 
-	// set timeout for socket to accept connection
-	timeout_state = select(pasvfd+1, rfds, wfds, NULL, &timeout);
-	if (timeout_state == -1) {
-		printf("PASV select error\n");
-	} else if (timeout_state) {
+	while(1)
+	{
 		pasv_sin_size = sizeof pasv_their_addr;
+		printf("before accept\n");
 		new_pasvfd = accept(pasvfd, (struct sockaddr *)&pasv_their_addr, &pasv_sin_size);
-
+		printf("after accept\n");
 		inet_ntop(pasv_their_addr.ss_family,
-				  get_in_addr((struct sockaddr *)&pasv_their_addr),
-				  s, sizeof s);
+				get_in_addr((struct sockaddr *)&pasv_their_addr),
+				s, sizeof s);
 		printf("server: got connection from %s\n", s);
 
 		if (new_pasvfd == -1)
 		{
 			perror("accept");
 		}
-		printf("Passive mode entered on IP address: %s, port: %d\n", host_addr, init_port);
-	} else {
-		close(pasvfd);
-		close(new_pasvfd);
-		char msg[MAXDATASIZE];
-		strcpy(msg, "500 Timeout on data conection\n");
-    	send(new_fd, msg, sizeof(msg), 0);
+		printf("Passive mode entered on IP address: %s, port: %d\n", pasv_addr, pasv_port);
+		if (!timeout_state) {
+			break;
+		}
 	}
 	
 	return 0;
