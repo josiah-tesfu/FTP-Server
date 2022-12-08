@@ -163,16 +163,18 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	sa.sa_handler = sigchld_handler; // reap all dead processes
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGCHLD, &sa, NULL) == -1)
-	{
-		perror("sigaction");
-		exit(1);
-	}
+	// sa.sa_handler = sigchld_handler; // reap all dead processes
+	// sigemptyset(&sa.sa_mask);
+	// sa.sa_flags = SA_RESTART;
+	// if (sigaction(SIGCHLD, &sa, NULL) == -1)
+	// {
+	// 	perror("sigaction");
+	// 	exit(1);
+	// }
 
 	printf("server: waiting for connections...\n");
+
+
 
 	while (1)
 	{ // main accept() loop
@@ -362,16 +364,17 @@ int pasv() {
 
 	struct sockaddr_in sin;
 
+	char *PORT = "0"; // should be using 0 /// port = p1 x 256 + p2
+
 	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_INET;
+	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE; // use my IP
 
-	char *PORT = "0"; // should be using 0 /// port = p1 x 256 + p2
 
 	printf("initial port: %s\n", PORT);
 
-	// using a random PORT number
+	// using a random PORT number (0)
 	if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0)
 	{
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
@@ -412,7 +415,6 @@ int pasv() {
 		exit(1);
 	}
 
-
 	// getting the socket info
 	socklen_t sin_len = sizeof(sin); 
 	if (getsockname(pasvfd, (struct sockaddr *)&sin, &sin_len) == -1)
@@ -426,7 +428,18 @@ int pasv() {
 	char *init_addr = inet_ntoa(sin.sin_addr);
 	printf("new (initial) ip address: %s\n", init_addr);
 
-	//char *new_pasv_addr = get_new_add
+	// maybe just either: send address that pasv_socket binds to OR send the original host address (make global variable)
+
+	// // other method
+	// struct sockaddr_in *addr = (struct sockaddr_in *)p->ai_addr;
+	// char ipAddress[MAXDATASIZE];
+	// inet_ntop(AF_INET, &(addr->sin_addr), ipAddress, MAXDATASIZE);
+	// printf("address try again: %s\n", ipAddress);
+	// //
+	// // I think there's a problem with the socket binding bc it should return an ip address
+	// //
+	
+
 
 	// getting the IP address as an int array
 	int ip_int[4];
@@ -475,13 +488,22 @@ int pasv() {
 		pasv_sin_size = sizeof pasv_their_addr;
 		new_pasvfd = accept(pasvfd, (struct sockaddr *)&pasv_their_addr, &pasv_sin_size);
 
+		inet_ntop(pasv_their_addr.ss_family,
+				  get_in_addr((struct sockaddr *)&pasv_their_addr),
+				  s, sizeof s);
+		printf("server: got connection from %s\n", s);
+
 		if (new_pasvfd == -1)
 		{
 			perror("accept");
 		}
 		printf("Passive mode entered on IP address: %s, port: %d", init_addr, init_port);
 	} else {
-		// timeout
+		close(pasvfd);
+		close(new_pasvfd);
+		char msg[MAXDATASIZE];
+		strcpy(msg, "500 Timeout on data conection\n");
+    	send(new_fd, msg, sizeof(msg), 0);
 	}
 	
 	return 0;
