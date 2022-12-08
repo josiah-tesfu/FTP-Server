@@ -352,7 +352,7 @@ ftp_cmd parse_cmd(char *buf)
 int pasv() {
 	int pasvfd, new_pasvfd;
 	struct addrinfo hints, *servinfo, *p;
-	struct sockaddr_storage pasv_their_addr; // connector's address information
+	struct sockaddr_storage pasv_their_addr;
 	socklen_t pasv_sin_size;
 	struct sigaction sa;
 	int yes = 1;
@@ -362,9 +362,14 @@ int pasv() {
 	int isLoggedIn = 0;
 	char pasv_msg[MAXDATASIZE];
 
+	char hostbuffer[MAXDATASIZE];
+    char *host_addr;
+    struct hostent *host_entry;
+    int hostname;
+
 	struct sockaddr_in sin;
 
-	char *PORT = "0"; // should be using 0 /// port = p1 x 256 + p2
+	char *PORT = "0";
 
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_UNSPEC;
@@ -407,7 +412,7 @@ int pasv() {
 		break;
 	}
 
-	freeaddrinfo(servinfo); // all done with this structure
+	freeaddrinfo(servinfo);
 
 	if (p == NULL)
 	{
@@ -415,7 +420,6 @@ int pasv() {
 		exit(1);
 	}
 
-	// getting the socket info
 	socklen_t sin_len = sizeof(sin); 
 	if (getsockname(pasvfd, (struct sockaddr *)&sin, &sin_len) == -1)
 	{
@@ -424,44 +428,41 @@ int pasv() {
 	}
 
 	int init_port = (int) ntohs(sin.sin_port);
-	printf("new  (initial) port: %d\n", init_port);
-	char *init_addr = inet_ntoa(sin.sin_addr);
-	printf("new (initial) ip address: %s\n", init_addr);
+	printf("PASV on port port: %d\n", init_port);
+  
+    hostname = gethostname(hostbuffer, sizeof(hostbuffer));
+    host_entry = gethostbyname(hostbuffer);
+    host_addr = inet_ntoa(*((struct in_addr*)
+                           host_entry->h_addr_list[0]));
+  
+	printf("PASV on IP address: %s\n", host_addr);
 
-	// maybe just either: send address that pasv_socket binds to OR send the original host address (make global variable)
+	// getting the IP address as an array
+  	unsigned char init_adr_array[4] = {0};
+    size_t index = 0;
 
-	// // other method
-	// struct sockaddr_in *addr = (struct sockaddr_in *)p->ai_addr;
-	// char ipAddress[MAXDATASIZE];
-	// inet_ntop(AF_INET, &(addr->sin_addr), ipAddress, MAXDATASIZE);
-	// printf("address try again: %s\n", ipAddress);
-	// //
-	// // I think there's a problem with the socket binding bc it should return an ip address
-	// //
-	
+    char *temp = host_addr; /* save the pointer */
+    while (*temp) {
+        if (isdigit((unsigned char)*temp)) {
+            init_adr_array[index] *= 10;
+            init_adr_array[index] += *temp - '0';
+        } else {
+            index++;
+        }
+        temp++;
+    }
 
-
-	// getting the IP address as an int array
-	int ip_int[4];
-	char *tok;
-	tok = strtok(init_addr, ".\n"); // ask about " \r\n" in office hours
-	ip_int[0] = atoi(tok);
-
-	printf("%s\n", init_addr);
-
-	int acc = 1;
-	while(tok != NULL) {
-		tok = strtok(NULL, ".\n");
-		ip_int[acc] = atoi(tok);
-		acc++;
-	}
+    int ip1 = init_adr_array[0];
+    int ip2 = init_adr_array[0];
+    int ip3 = init_adr_array[0];
+    int ip4 = init_adr_array[0];
 
 	int port_p1 = init_port / 256;
 	int port_p2 = init_port % 256;
 
 	// send client entering passive mode message
 	snprintf(pasv_msg, MAXDATASIZE, "227 Entering passive mode (%d,%d,%d,%d,%d,%d).\n", 
-		ip_int[0], ip_int[1], ip_int[2], ip_int[3], port_p1, port_p2);
+		ip1, ip2, ip3, ip4, port_p1, port_p2);
 	send(new_fd, pasv_msg, sizeof(pasv_msg), 0);
 
 	// timeout stuff
@@ -472,18 +473,20 @@ int pasv() {
 
 	FD_ZERO (&fdset);
     FD_SET  (pasvfd, &fdset);
-    timeout.tv_sec = 30;
+    timeout.tv_sec = 20;
     timeout.tv_usec = 0;
 
-	if (listen(init_port, BACKLOG) == -1)
+	// listen on the passive socket
+	if (listen(pasvfd, BACKLOG) == -1)
 	{
 		perror("listen");
 		exit(1);
 	}
 
+	// set timeout for socket to accept connection
 	timeout_state = select(pasvfd+1, rfds, wfds, NULL, &timeout);
 	if (timeout_state == -1) {
-		// error select
+		printf("PASV select error\n");
 	} else if (timeout_state) {
 		pasv_sin_size = sizeof pasv_their_addr;
 		new_pasvfd = accept(pasvfd, (struct sockaddr *)&pasv_their_addr, &pasv_sin_size);
@@ -497,7 +500,7 @@ int pasv() {
 		{
 			perror("accept");
 		}
-		printf("Passive mode entered on IP address: %s, port: %d", init_addr, init_port);
+		printf("Passive mode entered on IP address: %s, port: %d\n", host_addr, init_port);
 	} else {
 		close(pasvfd);
 		close(new_pasvfd);
@@ -508,7 +511,3 @@ int pasv() {
 	
 	return 0;
 }
-
-
-// initial address: INADDR_LOOPBACK
-// get_new_address_string(og address, new address, p1, p2)
