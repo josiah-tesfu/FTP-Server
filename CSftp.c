@@ -367,7 +367,7 @@ int pasv() {
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE; // use my IP
 
-	char *PORT = "1234";
+	char *PORT = "0"; // should be using 0 /// port = p1 x 256 + p2
 
 	printf("initial port: %s\n", PORT);
 
